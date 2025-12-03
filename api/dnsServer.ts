@@ -50,7 +50,11 @@ type Target = new (params: Params) => DnsServer<any>;
 
 export async function recordDns(target: Target) {
   return async (req: VercelRequest, res: VercelResponse) => {
-    const params = req.query as Params;
+    const bodyParams = req.body;
+    const params: Params = {
+      ...req.query,
+      ...req.body
+    } as Params;
     const error = checkQuery(params);
     if (error) {
       res.send({
