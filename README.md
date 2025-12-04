@@ -67,7 +67,7 @@ yarn vercel dev
 :local domain "demo.com" # 主机名
 
 :local pppoe "pppoe-out1" # ‼️ 确定并替换为您的 WAN 口名称
-:local UPDATE_DDNS_URL "[https://fgt-ddns-serverless.vercel.app/api/aliyun](https://fgt-ddns-serverless.vercel.app/api/aliyun)" # ‼️ 替换为您的 API URL
+:local UPDATE_DDNS_URL "https://fgt-ddns-serverless.vercel.app/api/aliyun" # ‼️ 替换为您的 API URL
 
 # 获取当前 WAN 口 IP 地址
 :local ipaddr [/ip address get [/ip address find interface=$pppoe] address]
