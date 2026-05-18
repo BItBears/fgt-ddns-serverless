@@ -1,4 +1,5 @@
 import Core from "@alicloud/pop-core";
+import * as https from "https";
 import { DnsServer, Params, recordDns } from "./dnsServer";
 
 
@@ -48,26 +49,55 @@ private getBarkBaseUrl(): string {
     // 自动清洗末尾的斜杠，防止拼接时出现双斜杠导致 404
     return rawUrl.replace(/\/+$/, "");
 }
-private triggerBark(actionTitle: string, detail: string): void {
+/**
+   * 2. 使用 Node.js 原生 https 模块重写非阻塞推送引擎（彻底消灭编译冲突）
+   */
+  private triggerBark(actionTitle: string, detail: string): void {
     const token = this.getBarkToken();
-    if (!token) return; // 没有提供任何 token，直接静默退出
+    if (!token) return;
 
     const baseUrl = this.getBarkBaseUrl();
     const customMessage = this.extendedParams.message ? `${this.extendedParams.message}\n` : "";
 
-    const payload = {
+    // 组装 Bark 规范的 JSON 负载
+    const payload = JSON.stringify({
       title: `⚡ ${actionTitle}`,
       body: `${customMessage}域名: ${this.name}.${this.domain}\n状态: ${detail}`,
       sound: "bell",
       group: "BitBears-Gateways",
       level: "active"
-    };
-    // 使用非阻塞的异步调用，确保 Vercel 的 HTTP 响应能光速返回给 OPNsense
-    axios.post(`${baseUrl}/${token}`, payload, { timeout: 4000 })
-      .catch((err) => {
-        console.error("Bark 推送闪断（不影响云解析主业务）:", err.message);
+    });
+
+    // 拼接完整的请求 URL，并解析成原生请求所需的参数
+    const targetFullUrl = `${baseUrl}/${token}`;
+    
+    try {
+      const options = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": Buffer.byteLength(payload)
+        },
+        timeout: 4000 // 4秒超时控制
+      };
+
+      // 发起原生 HTTPS 非阻塞异步请求
+      const req = https.request(targetFullUrl, options, (res) => {
+        // 消费数据流，防止内存泄漏
+        res.on("data", () => {});
       });
-}
+
+      req.on("error", (err) => {
+        console.error("Bark 原生推送偶发闪断:", err.message);
+      });
+
+      // 强行写入 Payload 报文体并关闭发送流
+      req.write(payload);
+      req.end();
+    } catch (err: any) {
+      console.error("Bark 引擎底层初始化异常:", err.message);
+    }
+  }
   public async addRecord() {
     const params = {
       DomainName: this.domain,
